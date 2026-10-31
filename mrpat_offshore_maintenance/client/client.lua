@@ -244,14 +244,15 @@ local function buildRepairMenu()
 					return
 				end
 
-				if not workProgress(Config.RepairDuration, locale('repairing')) then
-					return
-				end
-
 				if jobTier == nil then
 					notify(locale('contract_missing'), 'error')
 					return
 				end
+
+				if not workProgress(Config.RepairDuration, locale('repairing')) then
+					return
+				end
+
 				local tierDifficulties = Utils.getDifficulties(jobTier)
 				local difficulty = tierDifficulties[math.random(#tierDifficulties)]
 
@@ -478,7 +479,7 @@ local function startJob(tierId, moneyType)
 
 				while sonarToken == myToken do
 					local playerCoords = GetEntityCoords(PlayerPedId())
-					local quiet = not sonarEnabled or jobRepaired or inspectionSymptom or #(playerCoords - center) > jobTier.radius
+					local quiet = not sonarEnabled or jobRepaired or inspectionSymptom or #(playerCoords.xy - center.xy) > jobTier.radius
 
 					if quiet then
 						if screenVisible then
@@ -829,14 +830,14 @@ local function startMinigame(name, settings, title)
 	end
 	labels.title = title or labels.title
 
-	SendNUIMessage ({ action = 'open', game = name, settings = settings, labels = labels })
+	SendNUIMessage({ action = 'open', game = name, settings = settings, labels = labels })
 	local timeout = (settings.timeout or 60) * 1000
 	SetTimeout(timeout, function() 
 		if minigamePromise == myPromise then
 			minigamePromise:resolve(false)
 			minigamePromise = nil
 			SetNuiFocus(false, false)
-			SendNUIMessage ({ action = 'close' })
+			SendNUIMessage({ action = 'close' })
 		end
 	end)
 	return Citizen.Await(myPromise)

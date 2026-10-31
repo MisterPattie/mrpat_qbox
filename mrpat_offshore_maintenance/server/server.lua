@@ -10,7 +10,7 @@ local function log(src, citizenid, event, message, tag)
 	if not Config.Logging then
 		return
 	end
-	Config.LogCommand(src, event, ('%s (%s) %s'):format(GetPlayerName(src), citizenid, message), tag)
+	Config.LogCommand(src, event, ('%s (%s) %s'):format(GetPlayerName(src) or 'console', citizenid, message), tag)
 end
 
 local function matchTypes(value, expected)
@@ -40,7 +40,7 @@ local function getPlayerContract(src)
 	end
 
 	local contract = activeContracts[src]
-	if not contract then
+	if not contract or contract.finishing then
 		return nil, 'contract_missing'
 	end
 
@@ -66,6 +66,26 @@ local function getWorkContract(src, requiredState)
 	end
 
 	return contract
+end
+
+local function giveMoney(src, citizenid, moneyType, amount, reason)
+	local ok, result = pcall(function()
+		return exports.qbx_core:AddMoney(src, moneyType, amount, reason)
+	end)
+
+	if not ok then
+		log(src, citizenid, 'payment_failed', ('payment of %s (%s) crashed: %s'):format(amount, moneyType, result))
+		print(('[mrpat_om] payment of %s to %s (%s) crashed: %s'):format(amount, GetPlayerName(src), citizenid, result))
+		return false
+	end
+
+	if not result then
+		log(src, citizenid, 'payment_refused', ('payment of %s (%s) was refused'):format(amount, moneyType))
+		print(('[mrpat_om] payment of %s to %s (%s) was refused'):format(amount, GetPlayerName(src), citizenid))
+		return false
+	end
+
+	return true
 end
 
 -- Checks to find possible issues at startup
@@ -106,7 +126,15 @@ local function configCheckGeneralSettings()
 	end
 end
 
-local requiredTierFields = { 'id', 'level', 'types', 'vehicle', 'pay', 'xp' }
+local requiredTierFields = {
+	id = 'string',
+	label = 'string',
+	level = 'number',
+	types = 'table',
+	vehicle = 'string',
+	pay = 'number',
+	xp = 'number',
+}
 
 local function configCheckTiers()
 	local seenTypes = {}
@@ -114,22 +142,45 @@ local function configCheckTiers()
 
 	for index, tier in ipairs(Config.Tiers) do
 		local complete = true
-		for _, field in ipairs(requiredTierFields) do
+		local id = tier.id or index
+
+		for field, expected in pairs(requiredTierFields) do
+			local expectedText = expected
 			if tier[field] == nil then
-				lib.print.error(('tier %s (%s) is missing "%s"'):format(index, tostring(tier.id), field))
+				lib.print.error(('tier %s (%s) is missing "%s"'):format(index, id, field))
+				complete = false
+			elseif not matchTypes(tier[field], expected) then
+				if type(expected) == 'table' then
+					expectedText = table.concat(expected, " or ")
+				end
+				lib.print.error(('field %s in tier %s (%s) should be type %s but is type "%s"'):format(field, index, id, expectedText, type(tier[field])))
 				complete = false
 			end
 		end
 
 		if complete then
+			if #tier.types == 0 then
+				lib.print.error(('tier "%s" has no types, so it can never get a job site'):format(tier.id))
+			end
+
 			if seenIds[tier.id] then
 				lib.print.error(('tier id "%s" is used more than once'):format(tier.id))
 			else
 				seenIds[tier.id] = true
 			end
 
-			if tier.level < 1 or tier.level > #Config.Levels then
+			if tier.level % 1 ~= 0 then
+				lib.print.error(('tier "%s" has level "%s", but it should be a whole number'):format(tier.id, tier.level))
+			elseif tier.level < 1 or tier.level > #Config.Levels then
 				lib.print.error(('tier "%s" needs level "%s", but Config.Levels only has "%s" levels'):format(tier.id, tier.level, #Config.Levels))
+			end
+
+			if tier.pay <= 0 then
+				lib.print.error(('tier "%s" has pay "%s", but it should be higher than 0'):format(tier.id, tier.pay))
+			end
+
+			if tier.xp < 0 then
+				lib.print.error(('tier "%s" has xp "%s", but it should be 0 or higher'):format(tier.id, tier.xp))
 			end
 
 			if tier.deposit ~= nil and type(tier.deposit) ~= 'number' then
@@ -276,6 +327,47 @@ local function configCheckTypes()
 	end
 end
 
+local requiredTestFields = {
+	id = 'string',
+	duration = 'number',
+	types = 'table',
+}
+
+local function configCheckTests()
+	local seenIds = {}
+
+	for index, test in ipairs(Config.Tests) do
+		local complete = true
+		local id = test.id or index
+
+		for field, expected in pairs(requiredTestFields) do
+			if test[field] == nil then
+				lib.print.error(('test %s (%s) is missing "%s"'):format(index, tostring(id), field))
+				complete = false
+			elseif not matchTypes(test[field], expected) then
+				lib.print.error(('field %s in test %s (%s) should be type %s but is type "%s"'):format(field, index, tostring(id), expected, type(test[field])))
+				complete = false
+			end
+		end
+
+		if complete then
+			if #test.types == 0 then
+				lib.print.error(('test "%s" has no types, so it never shows up in the diagnostics'):format(test.id))
+			end
+
+			if seenIds[test.id] then
+				lib.print.error(('test id "%s" is used more than once'):format(test.id))
+			else
+				seenIds[test.id] = true
+			end
+
+			if test.duration <= 0 then
+				lib.print.error(('test "%s" has duration "%s", but it should be higher than 0'):format(test.id, test.duration))
+			end
+		end
+	end
+end
+
 local requiredFaultFields = {
 	types = 'table',
 	symptom = 'string',
@@ -310,7 +402,7 @@ local function configCheckFaults()
 			end
 
 			for _, test in ipairs(Config.Tests) do
-				if Utils.overlaps(test.types, fault.types) and not fault.readings[test.id] then
+				if type(test.types) == 'table' and Utils.overlaps(test.types, fault.types) and not fault.readings[test.id] then
 					lib.print.error(('fault "%s" has no reading for test "%s"'):format(name, test.id))
 				end
 			end
@@ -330,12 +422,68 @@ local function configCheckFaults()
 	end
 end
 
+local function configCheckLocales()
+	local lang = GetConvar('ox:locale', 'en')
+	local content = LoadResourceFile(GetCurrentResourceName(), ('locales/%s.json'):format(lang))
+
+	if not content and lang ~= 'en' then
+		lib.print.warn(('ox:locale is "%s", but locales/%s.json does not exist, so players will see English (en). Copy locales/en.json to locales/%s.json and translate it to add the language.'):format(lang, lang, lang))
+		lang = 'en'
+		content = LoadResourceFile(GetCurrentResourceName(), 'locales/en.json')
+	end
+
+	local ok, locales = pcall(json.decode, content)
+	if not ok or type(locales) ~= 'table' then
+		lib.print.error(('locales/%s.json is missing or broken, so the locale keys can\'t be checked'):format(lang))
+		return
+	end
+
+	local reported = {}
+
+	local function checkKey(key, usedBy)
+		if type(key) ~= 'string' or locales[key] or reported[key] then
+			return
+		end
+		reported[key] = true
+		lib.print.warn(('locale key "%s" (used by %s) is missing in locales/%s.json'):format(key, usedBy, lang))
+	end
+
+	for _, tier in ipairs(Config.Tiers) do
+		checkKey(tier.label, ('tier "%s"'):format(tostring(tier.id)))
+	end
+
+	for _, test in ipairs(Config.Tests) do
+		checkKey(test.id, 'Config.Tests')
+	end
+
+	for index, fault in ipairs(Config.Faults) do
+		local usedBy = ('fault "%s"'):format(tostring(fault.id or index))
+
+		checkKey(fault.symptom, usedBy)
+		checkKey(fault.repair, usedBy)
+
+		if type(fault.decoys) == 'table' then
+			for _, decoy in ipairs(fault.decoys) do
+				checkKey(decoy, usedBy)
+			end
+		end
+
+		if type(fault.readings) == 'table' then
+			for _, reading in pairs(fault.readings) do
+				checkKey(reading, usedBy)
+			end
+		end
+	end
+end
+
 local function validateConfig()
 	configCheckTiers()
 	configCheckTypes()
+	configCheckTests()
 	configCheckFaults()
 	configCheckLocations()
 	configCheckGeneralSettings()
+	configCheckLocales()
 end
 
 validateConfig()
@@ -390,20 +538,23 @@ end
 local function setPlayerXp(src, xp)
 	Config.Experience.set(src, xp)
 
-	local contract = getPlayerContract(src)
+	local contract = activeContracts[src]
 	if contract then
 		contract.totalXp = xp
 	end
 end
 
 local function finishJob(src, contract, refundDeposit, outcome)
+	contract.finishing = true
 	local playerXp = Config.Experience.get(src)
 	local level = Utils.getLevel(playerXp)
 	local totalXp = playerXp + contract.xp
 	local levelUp
 	local payment
 
-	if refundDeposit and contract.deposit > 0 then
+	contract.depositRefunded = refundDeposit and contract.deposit > 0
+
+	if contract.depositRefunded then
 		payment = contract.deposit + contract.pay
 	else
 		payment = contract.pay
@@ -416,7 +567,7 @@ local function finishJob(src, contract, refundDeposit, outcome)
 	payment = payment + contract.urgentBonusPaid
 	contract.paidOut = contract.pay + contract.urgentBonusPaid
 
-	exports.qbx_core:AddMoney(src, 'bank', payment, locale('offshore_maintenance_pay'))
+	giveMoney(src, contract.citizenid, 'bank', payment, locale('offshore_maintenance_pay'))
 
 	local newLevel = Utils.getLevel(totalXp)
 	if newLevel > level then
@@ -428,15 +579,19 @@ local function finishJob(src, contract, refundDeposit, outcome)
 	contract.levelUp = levelUp
 
 	contract.xpGained = contract.xp
-	contract.depositRefunded = refundDeposit
 
-	previousJobs[contract.citizenid] = { location = contract.location, fault = contract.fault }
+	previousJobs[src] = { location = contract.location, fault = contract.fault }
 
-	if refundDeposit then
-		log(src, contract.citizenid, outcome, ('returned the vessel and got deposit (%s), pay (%s) and XP (%s), totalxp is now %s. Urgent contract: "%s", inTime: "%s"'):format(contract.deposit, contract.paidOut, contract.xp, totalXp, contract.urgent, contract.inTime))
-	else
-		log(src, contract.citizenid, outcome, ('didn\'t return vessel so lost deposit (%s). Received pay (%s) and XP (%s), totalxp is now %s. Urgent contract: "%s", inTime: "%s"'):format(contract.deposit, contract.paidOut, contract.xp, totalXp, contract.urgent, contract.inTime))
-	end
+	log(src, contract.citizenid, outcome, ('finished the job: pay %s (urgent bonus %s), deposit %s refunded: %s, XP %s, total XP now %s. Urgent contract: "%s", inTime: "%s"'):format(
+		contract.paidOut,
+		contract.urgentBonusPaid,
+		contract.deposit,
+		tostring(contract.depositRefunded),
+		contract.xp,
+		totalXp,
+		contract.urgent,
+		contract.inTime
+	))
 
 	endJob(src, true, outcome)
 
@@ -580,7 +735,7 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		return false, tierErr
 	end
 
-	local previous = previousJobs[citizenid] or {}
+	local previous = previousJobs[src] or {}
 
 	local locationIndex, location = pickLocation(tier, previous)
 	if not locationIndex then
@@ -624,25 +779,14 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		spawnSource = Config.Depot.coords,
 	})
 
-	pendingContracts[src] = nil
-
 	if not ok then
 		if deposit > 0 then
-			local refundOk, refundResult = pcall(function()
-				return exports.qbx_core:AddMoney(src, moneyType, deposit, locale('offshore_maintenance_deposit'))
-			end)
-
-			if not refundOk then
-				log(src, citizenid, 'refund_failed', ('Refund of %s to player failed, reason: %s'):format(deposit, refundResult))
-				print(('[mrpat_om] Refund of %s to player %s (%s) failed, reason: %s'):format(deposit, GetPlayerName(src), citizenid, refundResult))
-			elseif not refundResult then
-				log(src, citizenid, 'refund_refused', ('Refund of %s to player refused'):format(deposit))
-				print(('[mrpat_om] Refund of %s to player %s (%s) refused'):format(deposit, GetPlayerName(src), citizenid))
-			end
+			giveMoney(src, citizenid, moneyType, deposit, locale('offshore_maintenance_deposit'))
 		end
 
 		log(src, citizenid, 'vessel_spawn_failed', ('wasn\'t able to get a vessel, reason: %s'):format(netId))
 		print(('[mrpat_om] vessel spawn failed: %s'):format(netId))
+		pendingContracts[src] = nil
 		return false, 'vessel_spawn_failed'
 	end
 
@@ -655,6 +799,7 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		end
 
 		log(src, citizenid, 'player_left_during_spawn', ('went offline while the vessel was spawning. Lost deposit: %s'):format(deposit))
+		pendingContracts[src] = nil
 		return false, 'no_character_loaded'
 	end
 
@@ -698,6 +843,8 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		urgentBonusPay = urgentBonusPay,
 		urgentBonusPaid = 0,
 	}
+
+	pendingContracts[src] = nil
 
 	local contract = activeContracts[src]
 
@@ -800,7 +947,7 @@ lib.callback.register('mrpat_om:returnVessel', function(src)
 	end
 
 	if not playerIsNear(src, Config.NPC.coords.xyz, Config.NPC.serverDistance) then
-		return false, 'player_too_far_from_depot'
+		return false, 'too_far_from_foreman'
 	end
 
 	if vesselIsLost(contract) then
@@ -817,8 +964,7 @@ lib.callback.register('mrpat_om:returnVessel', function(src)
 	end
 
 	if contract.deposit > 0 then
-		exports.qbx_core:AddMoney(src, 'bank', contract.deposit, locale('offshore_maintenance_deposit'))
-		contract.depositRefunded = true
+		contract.depositRefunded = giveMoney(src, contract.citizenid, 'bank', contract.deposit, locale('offshore_maintenance_deposit'))
 	end
 
 	endJob(src, true, 'returned')
@@ -833,7 +979,7 @@ lib.callback.register('mrpat_om:abandonJob', function(src)
 	end
 
 	if not playerIsNear(src, Config.NPC.coords.xyz, Config.NPC.serverDistance) then
-		return false, 'player_too_far_from_depot'
+		return false, 'too_far_from_foreman'
 	end
 
 	if vesselIsLost(contract) then
@@ -857,6 +1003,7 @@ AddEventHandler('playerDropped', function()
 		log(source, contract.citizenid, 'disconnected', 'got disconnected during the contract')
 	end
 	pendingContracts[source] = nil
+	previousJobs[source] = nil
 
 	endJob(source, false, 'disconnected')
 end)
@@ -868,6 +1015,7 @@ AddEventHandler('QBCore:Server:OnPlayerUnload', function(source)
 		log(source, contract.citizenid, 'logout', 'logged out during the contract')
 	end
 	pendingContracts[source] = nil
+	previousJobs[source] = nil
 	
 	endJob(source, true, 'logout')
 end)
@@ -879,8 +1027,7 @@ AddEventHandler('onResourceStop', function(resourceName)
 
 	for src, contract in pairs(activeContracts) do
 		if contract.deposit > 0 then
-			contract.depositRefunded = true
-			exports.qbx_core:AddMoney(src, 'bank', contract.deposit, locale('offshore_maintenance_deposit'))
+			contract.depositRefunded = giveMoney(src, contract.citizenid, 'bank', contract.deposit, locale('offshore_maintenance_deposit'))
 			log(src, contract.citizenid, 'resource_stopped', ('got the deposit (%s) back because the resource stopped'):format(contract.deposit))
 		end
 
@@ -920,8 +1067,8 @@ local adminActions = {
 			return
 		end
 
-		if type(value) ~= "number" or value <= 0 then
-			adminReply(source, 'Amount must be above 0', 'error')
+		if type(value) ~= "number" or value <= 0 or value % 1 ~= 0 then
+			adminReply(source, 'Amount must be a whole number greater than 0', 'error')
 			return
 		end
 
@@ -941,8 +1088,8 @@ local adminActions = {
 			return
 		end
 
-		if type(value) ~= "number" or value < 0 then
-			adminReply(source, 'Amount must be a 0 or higher', 'error')
+		if type(value) ~= "number" or value < 0 or value % 1 ~= 0 then
+			adminReply(source, 'Amount must be a whole number, 0 or higher', 'error')
 			return
 		end
 
@@ -960,8 +1107,8 @@ local adminActions = {
 			return
 		end
 
-		if type(value) ~= "number" or value <= 0 then
-			adminReply(source, 'Amount must be above 0', 'error')
+		if type(value) ~= "number" or value <= 0 or value % 1 ~= 0 then
+			adminReply(source, 'Amount must be a whole number greater than 0', 'error')
 			return
 		end
 
@@ -981,9 +1128,9 @@ local adminActions = {
 			return
 		end
 
-		local contract, err = getPlayerContract(target)
+		local contract = getPlayerContract(target)
 		if not contract then
-			adminReply(source, err, 'error')
+			adminReply(source, 'That player has no active contract', 'error')
 			return
 		end
 
@@ -992,34 +1139,27 @@ local adminActions = {
 			return
 		end
 
-		local payment
-		if value == 1 then
-			payment = contract.pay + contract.deposit
-		else
-			payment = contract.pay
-		end
-
 		if contract.state == 'repaired' and value == 1 then
 			finishJob(target, contract, true, 'admin')
-			adminReply(target, locale('admin_ended_paid_deposit'):format(payment), 'success')
-			adminReply(source, ('ended offshore job of %s (%s), returned pay and deposit (%s)'):format(targetName, targetCid, payment), 'success')
+			local total = contract.paidOut + contract.deposit
+			adminReply(target, locale('admin_ended_paid_deposit'):format(total), 'success')
+			adminReply(source, ('ended offshore job of %s (%s), returned pay and deposit (%s)'):format(targetName, targetCid, total), 'success')
 
 			local _, adminCid = identify(source)
-			log(source, adminCid, 'admin_offshore_endjob', ('ended offshore job of %s (%s), returned pay and deposit (%s)'):format(targetName, targetCid, payment))
+			log(source, adminCid, 'admin_offshore_endjob', ('ended offshore job of %s (%s), returned pay and deposit (%s)'):format(targetName, targetCid, total))
 			return
 		elseif contract.state == 'repaired' and value ~= 1 then
 			finishJob(target, contract, false, 'admin')
-			adminReply(target, locale('admin_ended_paid'):format(payment), 'success')
-			adminReply(source, ('ended offshore job of %s (%s), with pay (%s) but without deposit (%s)'):format(targetName, targetCid, payment, contract.deposit), 'success')
+			adminReply(target, locale('admin_ended_paid'):format(contract.paidOut), 'success')
+			adminReply(source, ('ended offshore job of %s (%s), with pay (%s) but without deposit (%s)'):format(targetName, targetCid, contract.paidOut, contract.deposit), 'success')
 
 			local _, adminCid = identify(source)
-			log(source, adminCid, 'admin_offshore_endjob', ('ended offshore job of %s (%s), with pay (%s) but without deposit (%s)'):format(targetName, targetCid, payment, contract.deposit))
+			log(source, adminCid, 'admin_offshore_endjob', ('ended offshore job of %s (%s), with pay (%s) but without deposit (%s)'):format(targetName, targetCid, contract.paidOut, contract.deposit))
 			return
 		end
 
 		if value == 1 and contract.deposit > 0 then
-			exports.qbx_core:AddMoney(target, 'bank', contract.deposit, locale('offshore_maintenance_deposit'))
-			contract.depositRefunded = true
+			contract.depositRefunded = giveMoney(target, contract.citizenid, 'bank', contract.deposit, locale('offshore_maintenance_deposit'))
 			endJob(target, true, 'admin')
 			adminReply(target, locale('admin_ended_deposit'):format(contract.deposit), 'success')
 			adminReply(source, ('ended offshore job of %s (%s), without pay but returned deposit (%s)'):format(targetName, targetCid, contract.deposit), 'success')

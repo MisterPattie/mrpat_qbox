@@ -8,12 +8,12 @@
 
 A job takes players from the harbor to open water and back, with a real decision in the middle.
 
-1. **Pick a contract type** at the dock foreman (ox_target). The menu shows the player's level and an XP bar, and a statistics page with their repairs, lost vessels and abandoned contracts. Contract types they have not unlocked yet are greyed out, with the level they need.
+1. **Pick a contract type** at the dock foreman (ox_target). The menu shows the player's level and an XP bar, and a statistics page with their repairs, lost vessels and abandoned contracts. Contract types they have not unlocked yet are grayed out, with the level they need.
 2. **Pay the deposit** in cash or by bank. With a deposit of 0, this step is skipped.
 3. **Head out** in the work vehicle, which the player is placed in straight away.
    - **Surface (from level 1):** a work vessel and a waypoint to a navigation buoy or a mooring float, which appears as the player approaches.
    - **Seabed (from level 6):** a work vessel, a search zone on the map instead of an exact point, and diving gear (a visible tank and mask). Anchor the vessel, dive down and find the equipment by its marker.
-   - **Deep sea (from level 11):** a submarine and a search zone. The equipment sits between 80 and 140 metres down. Go too deep and the submarine warns of crush depth, so careless pilots lose their vehicle and their deposit.
+   - **Deep sea (from level 11):** a submarine and a search zone. The equipment sits between 80 and 140 meters down. Go too deep and the submarine warns of crush depth, so careless pilots lose their vehicle and their deposit.
    - **Wreck search (from level 16):** a submarine, a large search zone and a sonar that beeps faster, and shows a stronger signal, the closer you get to a leaking wreck.
 4. **Inspect** the equipment with a quick skill check to discover the symptom. From the vessel or in the water this is an ox_target option on the equipment; from the submarine a key prompt appears once you are close enough ("[E] Inspect equipment").
 5. **Run diagnostics.** The tests depend on the equipment: navigation buoys get voltage, lamp and pressure tests, mooring floats get chain tension, buoyancy and mooring line checks, seabed and deep-sea equipment gets voltage, pressure and signal tests, pipelines also get a flow test, pump stations get voltage, pressure, flow and vibration tests, hydraulic units get voltage, pressure, signal and hydraulics tests, and wrecks get a leak trace and a hull scan. Each reading stays visible in the menu, next to the symptom.
@@ -35,11 +35,11 @@ Every decision that touches money or progress is made on the server, so a modifi
 - **Works from a submarine.** Contract types can use a key prompt instead of ox_target, so equipment can be inspected without leaving the vehicle. Each contract type can also set its own draw distance, so equipment far below the surface spawns in time.
 - **Exploit-resistant by design.** Repairs must be one of the options offered, repairs are rate-limited on the server, locked contract types are refused on the server, and each contract pays out only once.
 - **Urgent contracts.** A random share of contracts comes with a time limit and a bonus. The server rolls the chance, keeps the deadline and decides whether the repair was in time, so a modified client cannot claim the bonus.
-- **Deposits that mean something.** A sunk, destroyed, crushed or abandoned vehicle keeps the deposit, but a finished repair is still paid out, with its experience. Only the deposit is at risk. Players are warned before they give one up. Refunds always return exactly what was paid, even if the config changes in the meantime. Set the deposit to 0 to turn it off.
-- **Startup config checks.** Mistakes in the level curve, contract types, locations, faults, tests, zones, sonar, draw distances, interaction types, repair difficulties, urgent contracts and general settings are reported in the server console when the resource starts, not halfway through a player's job.
+- **Deposits that mean something.** A sunk, destroyed, crushed or abandoned vehicle keeps the deposit, but a finished repair is still paid out, with its experience. Only the deposit is at risk. Players are warned before they give one up. Refunds always return exactly what was paid, even if the config changes in the meantime. The vessel is the player's responsibility: if another player takes it and it is lost, the deposit is lost too. Set the deposit to 0 to turn it off.
+- **Startup config checks.** Mistakes in the level curve, contract types, locations, faults, tests, zones, sonar, draw distances, interaction types, repair difficulties, urgent contracts and general settings are reported in the server console when the resource starts, not halfway through a player's job. Missing translations are reported too, checked against the language your server uses.
 - **Clean up after itself.** Vehicles, props, diving gear, prompts and the foreman are removed on job end, logout, disconnect and resource restart.
 - **Player statistics.** Every character keeps a record of repairs, lost vessels and abandoned contracts, shown at the foreman. Stored in qbx_core metadata, no database table needed, and one setting turns it off.
-- **Logging for owners.** Job starts, repairs, payouts, XP, lost deposits and disconnects are logged through ox_lib's logger, to Fivemanage, Grafana Loki or Datadog. Suspicious actions carry a `suspicious` tag for one-click filtering.
+- **Logging for owners.** Job starts, repairs, payouts, XP, lost deposits and disconnects are logged through ox_lib's logger, to Fivemanage, Grafana Loki or Datadog. A payout or refund that qbx_core refuses is logged and printed in the console, so "I never got paid" reports can be traced. Suspicious actions carry a `suspicious` tag for one-click filtering.
 - **Translatable.** Every player-facing text lives in locale files. English and Dutch are included.
 - **Pluggable minigames.** Six built-in minigames (voltmeter, bolt sequence, wires, hold steady, water pump, controller reset code) plus ox_lib's skill check. Pick one per repair, or plug in your own or another resource's in `config/client.lua`. Each minigame shows the name of the chosen repair as its heading: every entry in `Config.RepairMinigame` receives that name as `title`, so pass it on with `minigame(name, settings, title)`. Each entry also receives the picked `difficulty` (`'easy'`, `'medium'` or `'hard'`); the built-in entries use it to choose their settings, as in `Config.Voltmeter[difficulty]`. Plugging in your own minigame? Make sure it handles all three levels.
 - **Harder work, harder repairs.** Each contract type lists which minigame difficulties its repairs can get, and every repair attempt picks one at random. By default, surface repairs are easy or medium, seabed repairs anything from easy to hard, and deep-sea and wreck repairs medium or hard.
@@ -80,7 +80,7 @@ Everything that shapes the job lives in three config files:
 | `Config.Currency` | client | Currency symbol shown in the menus | $ |
 | `Config.Minigame` / `Config.RepairMinigame` | client | Which minigame runs for inspecting and for each repair (each repair entry receives the repair's name as `title` and the picked `difficulty`) | skill check to inspect, a minigame per repair |
 | `Config.Voltmeter` / `Config.Bolts` / `Config.Wires` / `Config.Steady` / `Config.Pumping` / `Config.Code` / `Config.SkillCheck` | client | Settings per difficulty level of the minigames, including the skill check used for repairs without a minigame of their own | easy / medium / hard |
-| `Config.JobSite` / `Config.DrawDistance` | client | Job site blip, zone colour, marker and default draw distance | 100 m |
+| `Config.JobSite` / `Config.DrawDistance` | client | Job site blip, zone color, marker and default draw distance | 100 m |
 
 The answer key (faults, readings, correct repairs) is in the server-only config, so players cannot read it from their game files.
 
@@ -105,7 +105,7 @@ Players earn XP for every completed repair, paid out when they report back to th
   - `levelBonus` (optional), the percentage of `pay` added for each level above the tier's own `level`. Only the highest tier a player has unlocked gets it; lower tiers pay their base `pay`. Missing means no bonus.
   - `gear`, whether this tier needs diving gear
   - `blip`, how the job site shows on the map: `'exact'` for a point with a waypoint, or `'area'` for a search zone
-  - `radius`, the size of the search zone in metres (only for `'area'`)
+  - `radius`, the size of the search zone in meters (only for `'area'`)
   - `drawDistance` (optional), how far away the equipment spawns, to override `Config.DrawDistance`
   - `interactionType` (optional), `'target'` (ox_target on the equipment, the default) or `'prompt'` (a key prompt, for working from a vehicle)
   - `difficulties` (optional), the minigame difficulties a repair in this tier can get: `'easy'`, `'medium'` and/or `'hard'`. With more than one, every repair attempt picks one at random. Missing or empty means every repair is `'medium'`; an invalid value is reported at startup and skipped.
@@ -113,7 +113,7 @@ Players earn XP for every completed repair, paid out when they report back to th
   - `sonar` (optional), `true` gives the player a sonar inside the search zone. Needs `blip = 'area'` with a valid `radius`; without a search zone the tier gets no sonar, and the server console warns you at startup.
   - `urgentTimeLimit` (optional), the seconds a player has on an urgent contract of this tier, counted from taking the contract to finishing the repair. Missing means this tier's contracts are never urgent.
 
-A search zone is centred at a random spot near the equipment, so players still have to look for it. Once the repair is done, the zone disappears from the map.
+A search zone is centered at a random spot near the equipment, so players still have to look for it. Once the repair is done, the zone disappears from the map.
 
 **How the level bonus works.** A level 12 player has unlocked the deep-sea tier, which starts at level 11, so they are 1 level into it. With `levelBonus = 5`, a deep-sea contract pays 675 + 5% = 708 (bonuses are rounded down). At level 15 it pays 810. A surface contract still pays 400 for them, because it is not their highest tier. The menu always shows the amount the player will actually get. Keep the top of each tier below the start of the next one (with the defaults: 480 < 550, 660 < 675 and 810 < 950), so unlocking a new tier always feels like a raise.
 
@@ -141,7 +141,7 @@ The default types:
 3. Add `'pier_light'` to the `types` of each test in `Config.Tests` that applies to this equipment.
 4. Add `'pier_light'` to the `types` of existing faults that fit, or add new faults, with a reading for every test of that type.
 
-The startup checks warn you when a type is in two tiers, when a location type has no tier or no fault, when a tier type has no location, when a fault is missing a reading for one of its tests, when a tier needs a level that does not exist, when a search zone has no valid radius, when a tier has a sonar but no search zone, or when a level curve value, repair difficulty, draw distance, interaction type, deposit, urgent time limit or urgent contract setting is invalid.
+The startup checks warn you when a type is in two tiers, when a location type has no tier or no fault, when a tier type has no location, when a fault is missing a reading for one of its tests, when a tier needs a level that does not exist, when a search zone has no valid radius, when a tier has a sonar but no search zone, or when a level curve value, repair difficulty, draw distance, interaction type, deposit, urgent time limit or urgent contract setting is invalid. They also catch a tier or test field that is missing or has the wrong type, a tier or test without types, a tier level that isn't a whole number, pay of 0 or less, negative XP, a test with a duration of 0 or less, and a test id that is used twice. Finally, every locale key the config uses (tier labels, test names, symptoms, readings and repairs) is checked against the locale file players will see, so a forgotten translation shows up in the console instead of as a raw key in a menu.
 
 **Using your own skills or XP resource?** Replace the bodies of `Config.Experience.get` and `Config.Experience.set` in `config/server.lua`. Everything else keeps working.
 
@@ -158,26 +158,26 @@ Contract types with `gear = true` give the player diving gear when the contract 
 
 The deep-sea and wreck tiers use the `submersible2` submarine, start at the same depot as the vessels, and use `interactionType = 'prompt'`, because ox_target does not work well from inside a vehicle.
 
-- Keep deep-sea and wreck locations between roughly **-80 and -140 metres**. Below about -150 metres the submarine starts warning of crush depth.
+- Keep deep-sea and wreck locations between roughly **-80 and -140 meters**. Below about -150 meters the submarine starts warning of crush depth.
 - Equipment that deep needs a larger draw distance; both tiers use `drawDistance = 150`.
 - Using a different submarine? Change `vehicle` on the tier, and check that it spawns cleanly at your depot.
 
 ### Wreck search and the sonar
 
-The wreck tier sends players to a leaking wreck somewhere in a search zone of 300 metres. The zone is too big to search by sight, so the tier has `sonar = true`.
+The wreck tier sends players to a leaking wreck somewhere in a search zone of 300 meters. The zone is too big to search by sight, so the tier has `sonar = true`.
 
 - The sonar starts when the player enters the search zone, and beeps faster the closer they get to the wreck. The ranges and their beep speed are in `Config.Sonar` in `config/client.lua`, from far to close: each range's `distance` is its lower bound and `interval` is the time between beeps in seconds.
 - Next to the beep, a small signal meter at the top of the screen shows one bar per range: the farthest range lights 1 bar, the closest lights them all, and the lit bars flash with every beep. It is built from the same ranges as the sound, so the two always agree, and it gives no direction: players still have to search. Adding a range adds a bar. Set `display = false` in `Config.Sonar` for sound only.
 - Players can switch the sonar off and on with a key (`J` by default, rebindable in the FiveM key settings). It goes quiet, and the meter disappears, outside the search zone, once the player starts the inspection, and once the repair is done. It starts switched on again with the next contract.
 - Any tier with a search zone can get a sonar by adding `sonar = true`. On a tier without a search zone it does nothing, and the server console warns you at startup.
-- Keep the whole search zone in mind when placing wrecks: the zone's centre is placed at a random spot up to 70% of the radius away from the wreck.
+- Keep the whole search zone in mind when placing wrecks: the zone's center is placed at a random spot up to 70% of the radius away from the wreck.
 
 ### Urgent contracts
 
 Any contract can turn out to be urgent. The server rolls the chance when the player takes the contract, and the clock starts right away.
 
 - **The chance and the bonus** are set in `Config.UrgentContract` in `config/shared.lua`. `chance` is a percentage (decimals like `0.5` work, `0` turns urgent contracts off). `bonusPercentage` is a percentage of the tier's base `pay`, without the level bonus, rounded down.
-- **The time limit** is set per tier with `urgentTimeLimit`, in seconds. A tier without one never gets urgent contracts. Time a normal run of each tier, from taking the contract to finishing the repair, and set the limit a little above it: the wreck search takes much longer than a buoy near the harbour.
+- **The time limit** is set per tier with `urgentTimeLimit`, in seconds. A tier without one never gets urgent contracts. Time a normal run of each tier, from taking the contract to finishing the repair, and set the limit a little above it: the wreck search takes much longer than a buoy near the harbor.
 - **What the player sees:** a notification when the contract turns out to be urgent, a warning at each moment in `warnings` (in seconds left; moments that aren't shorter than the tier's limit are skipped), and then either "repaired in time" or "time's up".
 - **What counts** is the moment the repair is finished, not the trip back. The bonus is paid when the player reports back to the foreman, together with the pay. A repair finished in time also gets the bonus if the vessel is lost afterwards, just like the pay. When staff end the contract with `/offshore endjob`, a finished repair is paid out with its bonus too. A contract that ends through a disconnect, logout or resource restart is not paid out, so it gets no bonus either.
 - **Testing:** set `chance = 100` to make every contract urgent, and set it back afterwards.
@@ -222,7 +222,7 @@ Set `Config.Debug = true` in `config/shared.lua` and restart the resource to get
 | `/mycoords` | Prints your position and heading as a `vec4` and copies it to the clipboard |
 | `/seabed` | Finds the seabed below you and copies its position as a `vec3`, for seabed and deep-sea locations |
 | `/scubaon` / `/scubaoff` | Puts the diving gear on or takes it off |
-| `/prop <model> [surface\|seabed]` | Spawns a prop 3 metres in front of you, to see what a model looks like before you use it. On land it is placed on the ground; add `surface` to put it on the water surface, or `seabed` to put it on the bottom the way a job places it (the seabed z is printed in the F8 console). A model that doesn't exist is reported instead of spawned. |
+| `/prop <model> [surface\|seabed]` | Spawns a prop 3 meters in front of you, to see what a model looks like before you use it. On land it is placed on the ground; add `surface` to put it on the water surface, or `seabed` to put it on the bottom the way a job places it (the seabed z is printed in the F8 console). A model that doesn't exist is reported instead of spawned. |
 | `/delprop` | Removes the prop from `/prop` (spawning a new one also replaces the old one) |
 | `/checkprops` | Checks every model in `Config.Locations` and prints the ones that don't exist in the game, with the location's label, plus a summary in the F8 console. Run it after changing locations. |
 | `/volt`, `/bolts`, `/wires`, `/steady`, `/pumping`, `/code` `[difficulty]` | Starts that minigame and prints the result. Add `easy`, `medium` or `hard` to test a difficulty; without it, or with an unknown value, it uses `easy`. |
@@ -265,6 +265,8 @@ setr ox:locale "nl"
 ```
 
 English (`en`) and Dutch (`nl`) are included. To add a language, copy `locales/en.json` to `locales/<code>.json` and translate the values. Keep the keys as they are.
+
+If `ox:locale` names a language without a file in `locales/`, the server console warns you at startup, and players see English. The startup checks also list any locale key the config uses that is missing from the file players will see.
 
 ### Logging (optional)
 

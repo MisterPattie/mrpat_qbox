@@ -44,7 +44,7 @@ Config.Gear = {
 Config.Locations = {
 	-- surface locations
 	{
-		label = 'Vespucci harbour entrance buoy',
+		label = 'Vespucci harbor entrance buoy',
 		model = { 'prop_dock_bouy_1', 'prop_dock_bouy_2', 'prop_dock_bouy_3' },
 		placement = 'water',
 		coords = vec3(-1484.00, -1972.80, 0.20),
@@ -92,7 +92,7 @@ Config.Locations = {
 		coords = vec3(-2123.41, -2092.51, -0.54),
 		type = 'surface',
 	},
-	-- mooring floats (surface tier). Positions are offset from the buoys above; check them in game
+	-- mooring floats (surface tier)
 	{
 		label = 'Vespucci south channel mooring',
 		model = { 'prop_dock_float_1' },
@@ -165,7 +165,7 @@ Config.Locations = {
 		type = 'seabed_cable',
 	},
 	{
-		label = 'Vespucci harbour power cable',
+		label = 'Vespucci harbor power cable',
 		model = { 'prop_elecbox_10' },
 		placement = 'seabed',
 		coords = vec3(-1596.10, -1925.90, -30.70),
@@ -187,7 +187,7 @@ Config.Locations = {
 		type = 'seabed_pump',
 	},
 	{
-		label = 'Vespucci harbour cooling water pump',
+		label = 'Vespucci harbor cooling water pump',
 		model = { 'prop_byard_machine02' },
 		placement = 'seabed',
 		coords = vec3(-1610.00, -1938.00, -30.70),

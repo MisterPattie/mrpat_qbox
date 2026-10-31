@@ -20,6 +20,8 @@ local scubaGear = {
 
 Config.ClientGear = {
 	equip = function(ped)
+		if scubaGear.equipped then return end
+
 		local maskModel = joaat(Config.ScubaModels.mask)
 		local tankModel = joaat(Config.ScubaModels.tank)
 		lib.requestModel(maskModel)
@@ -88,13 +90,13 @@ Config.Sonar = {
 
 Config.InteractKey = 'E' -- default key for the prompt on tiers with interactionType = 'prompt' (players can rebind it)
 
--- How the job site looks: ox_target reach (metres), blip and marker.
+-- How the job site looks: ox_target reach (meters), blip and marker.
 Config.JobSite = {
 	targetDistance = 3.0,
 	blip = {
 		sprite = 402,
 		color = 18,
-		zoneColor = 18, -- colour of the search zone on tiers with blip = 'area'
+		zoneColor = 18, -- color of the search zone on tiers with blip = 'area'
 	},
 	marker = {
 		type = 0,
@@ -103,7 +105,7 @@ Config.JobSite = {
 	},
 }
 
-Config.DrawDistance = 100.0 -- metres, how far away job equipment spawns, unless a tier sets its own drawDistance
+Config.DrawDistance = 100.0 -- meters, how far away job equipment spawns, unless a tier sets its own drawDistance
 Config.InspectDuration = 2.5 -- seconds an inspection takes
 
 -- ox_lib skill check: one entry per round ('easy', 'medium' or 'hard').
@@ -135,7 +137,7 @@ Config.Bolts = {
 	hard = { count = 6, showTime = 400, tries = 3, },
 }
 
--- Wires: connect matching colours. count = number of wires, tries = attempts
+-- Wires: connect matching colors. count = number of wires, tries = attempts
 Config.Wires = {
 	easy = { count = 4, tries = 3, },
 	medium = { count = 5, tries = 3, },

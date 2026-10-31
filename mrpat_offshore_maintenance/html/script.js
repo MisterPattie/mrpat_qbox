@@ -200,7 +200,7 @@ window.addEventListener('message', (event) => {
 
 		
 		steadyBox.classList.add('show');
-		steadyRunning = true
+		steadyRunning = true;
 		steadyLastTime = performance.now();
 		requestAnimationFrame(steadyTick);
 
@@ -450,9 +450,9 @@ window.addEventListener('mouseup', (e) => {
 	if (triesLeft <= 0) {
 		currentGame = null;
 		setTimeout(() => {
-				wiresBox.classList.remove('show');
-				sendResult(false);
-			}, 600);
+			wiresBox.classList.remove('show');
+			sendResult(false);
+		}, 600);
 
 	} else {
 		wiresStatus.textContent = (wiresLabels.retry || 'TRY AGAIN') + ' (' + triesLeft + ')';

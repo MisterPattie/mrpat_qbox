@@ -8,8 +8,8 @@ Config.Debug = false
 Config.NPC = {
 	model = 'mp_m_waremech_01', -- ped model
 	coords = vec4(-1201.44, -1800.34, 3.91, 70.85), -- position and heading
-	targetDistance = 2.0, -- metres, ox_target reach
-	serverDistance = 10.0, -- metres, how close the server requires the player to be
+	targetDistance = 2.0, -- meters, ox_target reach
+	serverDistance = 10.0, -- meters, how close the server requires the player to be
 	blip = {
 		sprite = 427,
 		color = 12,
@@ -19,7 +19,7 @@ Config.NPC = {
 -- Where the work vehicle spawns and must be brought back to.
 Config.Depot = {
 	coords = vec4(-1273.54, -1854.69, 1.09, 133.15), -- spawn position and heading, in water deep enough for the submarine
-	returnDistance = 30.0, -- metres, how close the vehicle must be to count as returned
+	returnDistance = 30.0, -- meters, how close the vehicle must be to count as returned
 	blip = {
 		sprite = 357,
 		color = 1,
@@ -33,7 +33,7 @@ Config.Depot = {
 
 Config.Deposit = 150 -- default deposit for tiers without their own; 0 turns deposits off
 Config.RepairDuration = 10.0 -- seconds a repair attempt takes
-Config.InteractionDistance = 10.0 -- metres, how close a player must be to the equipment (also the key prompt range)
+Config.InteractionDistance = 10.0 -- meters, how close a player must be to the equipment (also the key prompt range)
 
 -- Diagnostic tests: id (also its locale key), duration in seconds, and the location types it applies to.
 Config.Tests = {
@@ -100,7 +100,7 @@ Config.Tiers = {
 		vehicle = 'dinghy4',
 		gear = true,
 		blip = 'area',
-		radius = 75, -- metres, size of the search zone for blip = 'area'
+		radius = 75, -- meters, size of the search zone for blip = 'area'
 		levelBonus = 5,
 		urgentTimeLimit = 600,
 	},
@@ -117,7 +117,7 @@ Config.Tiers = {
 		gear = false,
 		blip = 'area',
 		radius = 75,
-		drawDistance = 150, -- optional, metres, overrides Config.DrawDistance
+		drawDistance = 150, -- optional, meters, overrides Config.DrawDistance
 		interactionType = 'prompt', -- optional, 'target' (ox_target, default) or 'prompt' (key prompt, for working from a vehicle)
 		levelBonus = 5,
 		urgentTimeLimit = 720,
