@@ -1,9 +1,13 @@
 -- ACE groups that may use the /offshore admin command. Add your own staff groups here.
+-- Missing or empty: only the server console can use the command.
 Config.AdminPermissions = { 'group.admin', 'group.mod' }
 
-Config.Logging = true -- turn logging on or off (see README, Logging)
+-- turn logging on or off (see README, Logging)
+-- Missing: logging is off.
+Config.Logging = true
 
 -- Logging hook. Replace the body to use your own logging tool.
+-- Missing: nothing is logged, even with Config.Logging on.
 Config.LogCommand = function(src, event, message, tag)
 	lib.logger(src, event, message, tag)
 end
@@ -18,10 +22,10 @@ end
 -- Replace the bodies of these functions to use your own skills or XP resource.
 Config.Experience = {
 	get = function(src)
-		return exports.qbx_core:GetMetadata(src, 'offshore_xp') or 0
+		return exports.qbx_core:GetMetadata(src, 'mrpat_offshore_xp') or 0
 	end,
 	set = function(src, xp)
-		exports.qbx_core:SetMetadata(src, 'offshore_xp', xp)
+		exports.qbx_core:SetMetadata(src, 'mrpat_offshore_xp', xp)
 	end,
 }
 
@@ -38,7 +42,7 @@ Config.Gear = {
 -- Job sites.
 --   label: name used in the logs
 --   model: one prop model, or a list to pick from at random
---   placement: 'water' (floats on the surface), 'ground' (placed on the ground) or 'seabed' (uses the z as given)
+--   placement: 'surface' (floats on the surface), 'ground' (placed on the ground) or 'seabed' (uses the z as given)
 --   coords: vec3; for seabed and deep-sea locations, the z of the seabed itself (use /seabed with Config.Debug on)
 --   type: the location type, which decides the tier, the tests and the faults
 Config.Locations = {
@@ -46,49 +50,49 @@ Config.Locations = {
 	{
 		label = 'Vespucci harbor entrance buoy',
 		model = { 'prop_dock_bouy_1', 'prop_dock_bouy_2', 'prop_dock_bouy_3' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-1484.00, -1972.80, 0.20),
 		type = 'surface',
 	},
 	{
 		label = 'Vespucci south channel buoy',
 		model = { 'prop_dock_bouy_1', 'prop_dock_bouy_2', 'prop_dock_bouy_3' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-1800.60, -2035.00, -0.1),
 		type = 'surface',
 	},
 	{
 		label = 'Vespucci Beach swim zone buoy',
 		model = { 'prop_dock_bouy_1', 'prop_dock_bouy_2', 'prop_dock_bouy_3' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-1673.41, -1748.61, -0.52),
 		type = 'surface',
 	},
 	{
 		label = 'Vespucci Beach north buoy',
 		model = { 'prop_dock_bouy_1', 'prop_dock_bouy_2', 'prop_dock_bouy_3' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-1841.50, -1568.30, -0.40),
 		type = 'surface',
 	},
 	{
 		label = 'Vespucci offshore marker buoy',
 		model = { 'prop_dock_bouy_1', 'prop_dock_bouy_2', 'prop_dock_bouy_3' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-2130.89, -1828.90, 0.42),
 		type = 'surface',
 	},
 	{
 		label = 'Del Perro approach buoy',
 		model = { 'prop_dock_bouy_1', 'prop_dock_bouy_2', 'prop_dock_bouy_3' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-2180.90, -1563.84, -0.21),
 		type = 'surface',
 	},
 	{
 		label = 'Vespucci southwest marker buoy',
 		model = { 'prop_dock_bouy_1', 'prop_dock_bouy_2', 'prop_dock_bouy_3' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-2123.41, -2092.51, -0.54),
 		type = 'surface',
 	},
@@ -96,28 +100,28 @@ Config.Locations = {
 	{
 		label = 'Vespucci south channel mooring',
 		model = { 'prop_dock_float_1' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-1860.00, -2075.00, 0.00),
 		type = 'mooring',
 	},
 	{
 		label = 'Vespucci offshore mooring',
 		model = { 'prop_dock_float_1' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-2190.00, -1870.00, 0.00),
 		type = 'mooring',
 	},
 	{
 		label = 'Del Perro offshore mooring',
 		model = { 'prop_dock_float_1' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-2240.00, -1600.00, 0.00),
 		type = 'mooring',
 	},
 	{
 		label = 'Vespucci southwest mooring',
 		model = { 'prop_dock_float_1' },
-		placement = 'water',
+		placement = 'surface',
 		coords = vec3(-2180.00, -2140.00, 0.00),
 		type = 'mooring',
 	},
@@ -689,7 +693,7 @@ local defaultStats = {
 -- Replace the bodies to store them elsewhere, or set this to false to turn statistics off.
 Config.Stats = {
 	get = function(src)
-		local stats = exports.qbx_core:GetMetadata(src, 'offshore_stats') or {}
+		local stats = exports.qbx_core:GetMetadata(src, 'mrpat_offshore_stats') or {}
 
 		for name, value in pairs(defaultStats) do
 			if stats[name] == nil then
@@ -700,6 +704,6 @@ Config.Stats = {
 		return stats
 	end,
 	set = function(src, stats)
-		exports.qbx_core:SetMetadata(src, 'offshore_stats', stats)
+		exports.qbx_core:SetMetadata(src, 'mrpat_offshore_stats', stats)
 	end,
 }

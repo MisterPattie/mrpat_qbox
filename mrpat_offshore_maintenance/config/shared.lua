@@ -2,7 +2,8 @@ Config = {}
 
 -- Test commands for placing locations and tuning minigames (see README, Debug tools).
 -- Takes effect after a restart. Never turn this on on a live server!
-Config.Debug = false
+-- Missing: debug is off.
+Config.Debug = true
 
 -- The foreman who hands out contracts and takes vessels back.
 Config.NPC = {
@@ -31,9 +32,9 @@ Config.Depot = {
 	},
 }
 
-Config.Deposit = 150 -- default deposit for tiers without their own; 0 turns deposits off
-Config.RepairDuration = 10.0 -- seconds a repair attempt takes
-Config.InteractionDistance = 10.0 -- meters, how close a player must be to the equipment (also the key prompt range)
+Config.Deposit = 150 -- default deposit for tiers without their own; 0 turns deposits off (missing or invalid: 150)
+Config.RepairDuration = 10.0 -- seconds a repair attempt takes (missing or invalid: 10)
+Config.InteractionDistance = 10.0 -- meters, how close a player must be to the equipment (also the key prompt range; missing or invalid: 10)
 
 -- Diagnostic tests: id (also its locale key), duration in seconds, and the location types it applies to.
 Config.Tests = {
@@ -61,6 +62,7 @@ Config.LevelCurve = {
 
 -- Urgent contracts: any contract can turn out to be urgent when it is taken.
 -- Finish the repair before the tier's urgentTimeLimit runs out to get a bonus on top of the pay.
+-- Missing: contracts are never urgent. An invalid chance or bonusPercentage counts as 0.
 Config.UrgentContract = {
 	chance = 2, -- % chance that a contract is urgent (0 turns urgent contracts off, decimals like 0.5 work)
 	bonusPercentage = 5, -- % of the tier's base pay added when the repair is finished in time

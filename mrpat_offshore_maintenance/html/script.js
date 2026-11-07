@@ -114,7 +114,7 @@ window.addEventListener('message', (event) => {
 		currentGame = data.game;
 		voltmeterLabels = data.labels || {};
 		setLabels('voltmeter', voltmeterLabels);
-		
+
 		voltmeterStatus.textContent = '';
 		direction = 1;
 		speed = data.settings.speed || 60;
@@ -136,11 +136,11 @@ window.addEventListener('message', (event) => {
 		currentGame = data.game;
 		boltsLabels = data.labels || {};
 		setLabels('bolts', boltsLabels);
-		
+
 		const count = Math.min(data.settings.count || 3, boltEls.length);
 		boltShowTime = data.settings.showTime || 700;
 		triesLeft = data.settings.tries || 3;
-		
+
 		clearBoltTimers();
 
 		sequence = shuffled([...boltEls].map((b, i) => i)).slice(0, count);
@@ -158,7 +158,7 @@ window.addEventListener('message', (event) => {
 		currentGame = data.game;
 		wiresLabels = data.labels || {};
 		setLabels('wires', wiresLabels);
-		
+
 		wiresCount = Math.min(data.settings.count || 4, wiresColors.length);
 		wiresConnected = 0;
 		triesLeft = data.settings.tries || 3;
@@ -198,7 +198,7 @@ window.addEventListener('message', (event) => {
 		steadyElapsed = 0;
 		steadyHolding = false;
 
-		
+
 		steadyBox.classList.add('show');
 		steadyRunning = true;
 		steadyLastTime = performance.now();
@@ -261,7 +261,7 @@ window.addEventListener('message', (event) => {
 		pulseSonar();
 
 	} else if (data.action === 'sonarOff') {
-		
+
 		sonarBox.classList.remove('show');
 
 	} else if (data.action === 'close') {
@@ -278,7 +278,7 @@ function voltmeterTick(now) {
 
 	const dt = Math.min((now - voltmeterLastTime) / 1000, MAX_FRAME_TIME);
 	voltmeterLastTime = now;
-	
+
 	position = position + (speed * direction * dt);
 	position = Math.max(0, Math.min(100, position));
 	if (position >= 100 || position <= 0) {
@@ -357,7 +357,7 @@ boltEls.forEach(bolt => {
 			} else {
 				boltsStatus.textContent = (boltsLabels.retry || 'TRY AGAIN') + ' (' + triesLeft + ')';
 				boltTimeout(() => restartBolts(boltShowTime), 1000);
-			}			
+			}
 		}
 	})
 })
@@ -646,7 +646,7 @@ function handleCodeKey(event) {
 		if (codeGuess.length < codeLength && !codeGuess.includes(digit)) {
 			codeGuess.push(digit);
 			renderCodeInput();
-		}	
+		}
 	} else if (event.code === 'Backspace') {
 		codeGuess.pop();
 		renderCodeInput();
@@ -699,13 +699,13 @@ function pulseSonar() {
 window.addEventListener('keydown', (event) => {
 	if (event.repeat) return;
 	if (event.code === 'Space' && currentGame === 'voltmeter') {
-		
+
 		const hit = position >= zoneStart && position < (zoneStart + zoneWidth);
 
 		if (hit) {
 			voltmeterRunning = false;
 			currentGame = null;
-			setTimeout(() => {				
+			setTimeout(() => {
 				voltmeterBox.classList.remove('show');
 				sendResult(true);
 				}, 600);
@@ -713,17 +713,17 @@ window.addEventListener('keydown', (event) => {
 		}
 
 		triesLeft--;
-		
+
 		if (triesLeft <= 0) {
 			voltmeterRunning = false;
 			currentGame = null;
-			setTimeout(() => {	
+			setTimeout(() => {
 				voltmeterBox.classList.remove('show');
 				sendResult(false);
 				}, 600);
 			return
-		} 
-		
+		}
+
 		voltmeterStatus.textContent = (voltmeterLabels.retry || 'TRY AGAIN') + ' (' + triesLeft + ')';
 	} else if (event.code == 'Space' && currentGame == 'steady') {
 		steadyHolding = true;

@@ -1,3 +1,4 @@
+<!-- This README was written and updated with help from Claude (Anthropic). -->
 # Offshore Maintenance
 
 ## Make the ocean pay
@@ -12,7 +13,7 @@ A job takes players from the harbor to open water and back, with a real decision
 2. **Pay the deposit** in cash or by bank. With a deposit of 0, this step is skipped.
 3. **Head out** in the work vehicle, which the player is placed in straight away.
    - **Surface (from level 1):** a work vessel and a waypoint to a navigation buoy or a mooring float, which appears as the player approaches.
-   - **Seabed (from level 6):** a work vessel, a search zone on the map instead of an exact point, and diving gear (a visible tank and mask). Anchor the vessel, dive down and find the equipment by its marker.
+   - **Seabed (from level 6):** a work vessel, a search zone on the map instead of an exact point, and diving gear (a visible tank and mask). Anchor the vessel (a hint in the boat shows the key), dive down and find the equipment by its marker.
    - **Deep sea (from level 11):** a submarine and a search zone. The equipment sits between 80 and 140 meters down. Go too deep and the submarine warns of crush depth, so careless pilots lose their vehicle and their deposit.
    - **Wreck search (from level 16):** a submarine, a large search zone and a sonar that beeps faster, and shows a stronger signal, the closer you get to a leaking wreck.
 4. **Inspect** the equipment with a quick skill check to discover the symptom. From the vessel or in the water this is an ox_target option on the equipment; from the submarine a key prompt appears once you are close enough ("[E] Inspect equipment").
@@ -36,10 +37,10 @@ Every decision that touches money or progress is made on the server, so a modifi
 - **Exploit-resistant by design.** Repairs must be one of the options offered, repairs are rate-limited on the server, locked contract types are refused on the server, and each contract pays out only once.
 - **Urgent contracts.** A random share of contracts comes with a time limit and a bonus. The server rolls the chance, keeps the deadline and decides whether the repair was in time, so a modified client cannot claim the bonus.
 - **Deposits that mean something.** A sunk, destroyed, crushed or abandoned vehicle keeps the deposit, but a finished repair is still paid out, with its experience. Only the deposit is at risk. Players are warned before they give one up. Refunds always return exactly what was paid, even if the config changes in the meantime. The vessel is the player's responsibility: if another player takes it and it is lost, the deposit is lost too. Set the deposit to 0 to turn it off.
-- **Startup config checks.** Mistakes in the level curve, contract types, locations, faults, tests, zones, sonar, draw distances, interaction types, repair difficulties, urgent contracts and general settings are reported in the server console when the resource starts, not halfway through a player's job. Missing translations are reported too, checked against the language your server uses.
+- **Startup config checks.** Mistakes in the level curve, contract types, locations, faults, tests, zones, sonar, draw distances, interaction types, repair difficulties, urgent contracts and general settings are reported in the server console when the resource starts, not halfway through a player's job. A missing or invalid setting never crashes the script: the message says which fallback is used, and the client gets the same fallback as the server. Missing translations are reported too, checked against the language your server uses.
 - **Clean up after itself.** Vehicles, props, diving gear, prompts and the foreman are removed on job end, logout, disconnect and resource restart.
 - **Player statistics.** Every character keeps a record of repairs, lost vessels and abandoned contracts, shown at the foreman. Stored in qbx_core metadata, no database table needed, and one setting turns it off.
-- **Logging for owners.** Job starts, repairs, payouts, XP, lost deposits and disconnects are logged through ox_lib's logger, to Fivemanage, Grafana Loki or Datadog. A payout or refund that qbx_core refuses is logged and printed in the console, so "I never got paid" reports can be traced. Suspicious actions carry a `suspicious` tag for one-click filtering.
+- **Logging for owners.** Job starts, repairs, payouts, XP, lost deposits and disconnects are logged through ox_lib's logger, to Fivemanage, Grafana Loki or Datadog. A payout or refund that qbx_core refuses is logged and printed in the console, so "I never got paid" reports can be traced. A contract start that crashes is logged too, so a deposit without a contract can be traced. Suspicious actions carry a `suspicious` tag for one-click filtering.
 - **Translatable.** Every player-facing text lives in locale files. English and Dutch are included.
 - **Pluggable minigames.** Six built-in minigames (voltmeter, bolt sequence, wires, hold steady, water pump, controller reset code) plus ox_lib's skill check. Pick one per repair, or plug in your own or another resource's in `config/client.lua`. Each minigame shows the name of the chosen repair as its heading: every entry in `Config.RepairMinigame` receives that name as `title`, so pass it on with `minigame(name, settings, title)`. Each entry also receives the picked `difficulty` (`'easy'`, `'medium'` or `'hard'`); the built-in entries use it to choose their settings, as in `Config.Voltmeter[difficulty]`. Plugging in your own minigame? Make sure it handles all three levels.
 - **Harder work, harder repairs.** Each contract type lists which minigame difficulties its repairs can get, and every repair attempt picks one at random. By default, surface repairs are easy or medium, seabed repairs anything from easy to hard, and deep-sea and wreck repairs medium or hard.
@@ -56,24 +57,24 @@ Everything that shapes the job lives in three config files:
 | --- | --- | --- | --- |
 | `Config.Locations` | server | Job sites: label, type, prop models, placement | 34 sites (7 buoys and 4 mooring floats on the surface, 7 seabed sites and 3 pump stations, 7 deep-sea sites and 3 hydraulic units, 3 wrecks) |
 | `Config.Faults` | server | Symptoms, readings, correct repair, decoys and which location types they fit | 30 faults |
-| `Config.Experience` | server | Where XP is stored (`get` / `set` hook) | qbx_core metadata `offshore_xp` |
+| `Config.Experience` | server | Where XP is stored (`get` / `set` hook); without a working `get` and `set` it falls back to the default | qbx_core metadata `mrpat_offshore_xp` |
 | `Config.Gear` | server | Whether a player may take a diving contract (`hasGear` hook); `false` skips the check | everyone, the job provides the gear |
-| `Config.Stats` | server | Where player statistics are stored (`get` / `set` hook); `false` turns statistics off | qbx_core metadata `offshore_stats` |
-| `Config.Logging` | server | Turn logging on or off | on |
-| `Config.AdminPermissions` | server | Which ACE groups may use the `/offshore` admin command | `group.admin`, `group.mod` |
+| `Config.Stats` | server | Where player statistics are stored (`get` / `set` hook); `false` turns statistics off, and so does a hook without a working `get` and `set` | qbx_core metadata `mrpat_offshore_stats` |
+| `Config.Logging` / `Config.LogCommand` | server | Turn logging on or off, and the hook that sends each log line (missing hook: nothing is logged) | on |
+| `Config.AdminPermissions` | server | Which ACE groups may use the `/offshore` admin command (missing or empty: only the server console) | `group.admin`, `group.mod` |
 | `Config.Debug` | shared | Turns on the test commands (see [Debug tools](#debug-tools)). Takes effect after a restart; never use it on a live server | off |
 | `Config.LevelCurve` | shared | How much XP each level needs: number of levels, XP for the first level-up, and how much more each next level costs | 20 levels, 60 XP, +20% per level |
 | `Config.Tiers` | shared | Contract types: required level, location types, vehicle, pay, XP, gear, blip mode, zone radius, draw distance, interaction type, repair difficulties, urgent time limit and an optional own deposit | 4 tiers (surface, seabed, deep sea, wreck search) |
 | `Config.Tests` | shared | The diagnostic tests, how long each one takes and which location types they apply to | 12 tests |
-| `Config.Deposit` | shared | Default deposit, used when a tier has no `deposit` of its own (0 turns deposits off) | 150 |
-| `Config.UrgentContract` | shared | Chance that a contract is urgent, the bonus for finishing in time and the warning moments (see [Urgent contracts](#urgent-contracts)) | 2% chance, 5% bonus, warnings at 5, 2 and 1 minutes left |
-| `Config.InteractionDistance` | shared | How close players must be to the equipment, checked by the server and used for the key prompt | 10 m |
-| `Config.RepairDuration` | shared | Time a repair attempt takes | 10 s |
+| `Config.Deposit` | shared | Default deposit, used when a tier has no valid `deposit` of its own (0 turns deposits off; missing or invalid: 150) | 150 |
+| `Config.UrgentContract` | shared | Chance that a contract is urgent, the bonus for finishing in time and the warning moments (see [Urgent contracts](#urgent-contracts)); missing: contracts are never urgent | 2% chance, 5% bonus, warnings at 5, 2 and 1 minutes left |
+| `Config.InteractionDistance` | shared | How close players must be to the equipment, checked by the server and used for the key prompt (missing or invalid: 10 m) | 10 m |
+| `Config.RepairDuration` | shared | Time a repair attempt takes (missing or invalid: 10 s) | 10 s |
 | `Config.NPC` | shared | Foreman model, position, blip and interaction distances | dock worker |
 | `Config.Depot` | shared | Vehicle spawn point and return radius | 30 m radius |
 | `Config.InspectDuration` | client | Time an inspection takes | 2.5 s |
 | `Config.InteractKey` | client | Default key for the prompt on contract types with `interactionType = 'prompt'` (players can rebind it) | E |
-| `Config.Anchor` | client | Anchor key and maximum speed for anchoring | G |
+| `Config.Anchor` | client | Anchor key and maximum speed for anchoring. In a job boat, a hint shows the player's own key and whether it will drop or raise the anchor; the submarine has no anchor and no hint | G, 1.0 |
 | `Config.Sonar` | client | Sonar key, the distance ranges with their beep interval, the beep sound, and the signal meter on screen | J, 5 ranges from every 3 s to every 0.25 s, meter on |
 | `Config.ClientGear` | client | What happens when diving gear goes on and off (`equip` / `unequip` hook); `false` leaves the gear to another resource | built-in scuba with a visible tank and mask |
 | `Config.ScubaModels` | client | The mask and tank props | GTA scuba props |
@@ -113,7 +114,7 @@ Players earn XP for every completed repair, paid out when they report back to th
   - `sonar` (optional), `true` gives the player a sonar inside the search zone. Needs `blip = 'area'` with a valid `radius`; without a search zone the tier gets no sonar, and the server console warns you at startup.
   - `urgentTimeLimit` (optional), the seconds a player has on an urgent contract of this tier, counted from taking the contract to finishing the repair. Missing means this tier's contracts are never urgent.
 
-A search zone is centered at a random spot near the equipment, so players still have to look for it. Once the repair is done, the zone disappears from the map.
+A search zone is centered at a random spot up to 70% of its radius away from the equipment, so the equipment is always inside the zone and players still have to look for it. Once the repair is done, the zone disappears from the map.
 
 **How the level bonus works.** A level 12 player has unlocked the deep-sea tier, which starts at level 11, so they are 1 level into it. With `levelBonus = 5`, a deep-sea contract pays 675 + 5% = 708 (bonuses are rounded down). At level 15 it pays 810. A surface contract still pays 400 for them, because it is not their highest tier. The menu always shows the amount the player will actually get. Keep the top of each tier below the start of the next one (with the defaults: 480 < 550, 660 < 675 and 810 < 950), so unlocking a new tier always feels like a raise.
 
@@ -144,6 +145,22 @@ The default types:
 The startup checks warn you when a type is in two tiers, when a location type has no tier or no fault, when a tier type has no location, when a fault is missing a reading for one of its tests, when a tier needs a level that does not exist, when a search zone has no valid radius, when a tier has a sonar but no search zone, or when a level curve value, repair difficulty, draw distance, interaction type, deposit, urgent time limit or urgent contract setting is invalid. They also catch a tier or test field that is missing or has the wrong type, a tier or test without types, a tier level that isn't a whole number, pay of 0 or less, negative XP, a test with a duration of 0 or less, and a test id that is used twice. Finally, every locale key the config uses (tier labels, test names, symptoms, readings and repairs) is checked against the locale file players will see, so a forgotten translation shows up in the console instead of as a raw key in a menu.
 
 **Using your own skills or XP resource?** Replace the bodies of `Config.Experience.get` and `Config.Experience.set` in `config/server.lua`. Everything else keeps working.
+
+### Depth and search zones
+
+Each tier works at its own depth, set by how the player gets there. Keep new locations within these ranges:
+
+| Tier | Vehicle | Depth of the equipment | Map |
+| --- | --- | --- | --- |
+| surface | boat | on the water; the height is taken from the water automatically | exact point with a route |
+| seabed | boat and diving gear | about -20 to -55 meters | search zone of 75 meters |
+| deep sea | submarine | about -80 to -140 meters | search zone of 75 meters |
+| wreck search | submarine | about -80 to -140 meters | search zone of 300 meters, with sonar |
+
+- **Seabed:** divers have 15 minutes of air with the built-in gear, and have to swim down and back up. Deeper than about -55 meters gets slow and risky, and it overlaps the submarine's range.
+- **Deep sea and wrecks:** below about -150 meters the submarine starts warning of crush depth, so keep the equipment well above that.
+- **Finding the depth:** for seabed and deep-sea locations, the z coordinate must be the seabed itself. Use `/seabed` (see [Debug tools](#debug-tools)) at the spot, or `/prop <model> seabed` to see where a prop ends up.
+- **Search zones** are set with `radius` on the tier. The zone's center is placed up to 70% of the radius away from the equipment, so a large radius means a long search.
 
 ### Diving gear
 
@@ -176,7 +193,7 @@ The wreck tier sends players to a leaking wreck somewhere in a search zone of 30
 
 Any contract can turn out to be urgent. The server rolls the chance when the player takes the contract, and the clock starts right away.
 
-- **The chance and the bonus** are set in `Config.UrgentContract` in `config/shared.lua`. `chance` is a percentage (decimals like `0.5` work, `0` turns urgent contracts off). `bonusPercentage` is a percentage of the tier's base `pay`, without the level bonus, rounded down.
+- **The chance and the bonus** are set in `Config.UrgentContract` in `config/shared.lua`. `chance` is a percentage (decimals like `0.5` work, `0` turns urgent contracts off). Without `Config.UrgentContract`, or with an invalid `chance`, contracts are never urgent; an invalid `bonusPercentage` counts as 0, and invalid `warnings` are skipped. The console says so at startup. `bonusPercentage` is a percentage of the tier's base `pay`, without the level bonus, rounded down.
 - **The time limit** is set per tier with `urgentTimeLimit`, in seconds. A tier without one never gets urgent contracts. Time a normal run of each tier, from taking the contract to finishing the repair, and set the limit a little above it: the wreck search takes much longer than a buoy near the harbor.
 - **What the player sees:** a notification when the contract turns out to be urgent, a warning at each moment in `warnings` (in seconds left; moments that aren't shorter than the tier's limit are skipped), and then either "repaired in time" or "time's up".
 - **What counts** is the moment the repair is finished, not the trip back. The bonus is paid when the player reports back to the foreman, together with the pay. A repair finished in time also gets the bonus if the vessel is lost afterwards, just like the pay. When staff end the contract with `/offshore endjob`, a finished repair is paid out with its bonus too. A contract that ends through a disconnect, logout or resource restart is not paid out, so it gets no bonus either.
@@ -184,7 +201,7 @@ Any contract can turn out to be urgent. The server rolls the chance when the pla
 
 ### Admin commands
 
-Staff can manage players with one command, from in game or from the server console. Who may use it is set in `Config.AdminPermissions` in `config/server.lua`; add your own staff groups there. Every action is logged.
+Staff can manage players with one command, from in game or from the server console. Who may use it is set in `Config.AdminPermissions` in `config/server.lua`; add your own staff groups there. If the setting is missing or empty, only the server console can use it. Every action is logged.
 
 | Command | What it does |
 | --- | --- |
@@ -207,9 +224,9 @@ Every character keeps a record of their offshore work. Players open it from the 
 
 Contracts that end through a disconnect, a logout, a resource restart or an admin are not counted, and neither is bringing the vessel back without a repair.
 
-- **Storage:** qbx_core metadata (`offshore_stats`), per character. Counters that are added in a later version start at 0 automatically, and characters who never take a contract get no data at all.
+- **Storage:** qbx_core metadata (`mrpat_offshore_stats`), per character. Counters that are added in a later version start at 0 automatically, and characters who never take a contract get no data at all.
 - **Your own storage?** Replace the bodies of `Config.Stats.get` and `Config.Stats.set` in `config/server.lua`.
-- **Turn it off:** set `Config.Stats = false`. Nothing is counted or stored, and the menu entry disappears.
+- **Turn it off:** set `Config.Stats = false`. Nothing is counted or stored, and the menu entry disappears. A `Config.Stats` without a working `get` and `set` is turned off the same way, with an error in the server console.
 
 The counting lives in `server/stats.lua` and uses only the public `jobFinished` event, so it doubles as an example for your own scripts.
 
@@ -279,7 +296,7 @@ set fivemanage:key "YOUR_API_KEY"
 
 Grafana Loki and Datadog are supported too; see the [ox_lib logger documentation](https://overextended.dev/docs/ox_lib/Modules/Logger/Server). To turn logging off, set `Config.Logging = false` in `config/server.lua`.
 
-Using your own logging tool? Edit `Config.LogCommand` in `config/server.lua`.
+Using your own logging tool? Edit `Config.LogCommand` in `config/server.lua`. Without a `Config.LogCommand`, nothing is logged, and the server console warns you at startup.
 
 ### Events (for developers)
 

@@ -48,9 +48,12 @@ Utils.overlaps = function(listA, listB)
 	return false
 end
 
--- The tier's own deposit, or Config.Deposit when the tier has none.
+-- The tier's own deposit, or Config.Deposit when the tier has none (or an invalid one).
 Utils.getDeposit = function(tier)
-	return tier.deposit or Config.Deposit
+	if type(tier.deposit) == 'number' and tier.deposit >= 0 then
+		return tier.deposit
+	end
+	return Config.Deposit
 end
 
 -- Every valid repair difficulty.
@@ -120,6 +123,50 @@ Utils.buildLevels = function(curve)
 end
 
 Config.Levels = Utils.buildLevels(Config.LevelCurve)
+
+-- Fallbacks for general settings that are missing or out of range. Shared, so client and server use the same values.
+local defaultSettings = { InteractionDistance = 10.0, RepairDuration = 10.0, Deposit = 150 }
+
+-- The value when it is a valid number, otherwise the fallback (with a warning on the server).
+local function checkNumber(name, value, fallback, zeroAllowed, maxValue)
+	local aboveMin = type(value) == 'number' and (value > 0 or (zeroAllowed and value == 0))
+	if aboveMin and (not maxValue or value <= maxValue) then
+		return value
+	end
+
+	local minText = zeroAllowed and '0 or higher' or 'higher than 0'
+	local maxText = maxValue and (' and at most %s'):format(maxValue) or ''
+	serverWarningOnly('Config.%s is "%s", but should be %s%s, using %s instead', name, tostring(value), minText, maxText, fallback)
+	return fallback
+end
+
+Config.InteractionDistance = checkNumber('InteractionDistance', Config.InteractionDistance, defaultSettings.InteractionDistance)
+Config.RepairDuration = checkNumber('RepairDuration', Config.RepairDuration, defaultSettings.RepairDuration)
+Config.Deposit = checkNumber('Deposit', Config.Deposit, defaultSettings.Deposit, true)
+
+-- Urgent contracts: missing or invalid settings fall back to "never urgent" and no bonus.
+if type(Config.UrgentContract) ~= 'table' then
+	serverWarningOnly('Config.UrgentContract is missing, so contracts will never be urgent')
+	Config.UrgentContract = { chance = 0, bonusPercentage = 0, warnings = {} }
+else
+	local urgent = Config.UrgentContract
+	urgent.chance = checkNumber('UrgentContract.chance', urgent.chance, 0, true, 100)
+	urgent.bonusPercentage = checkNumber('UrgentContract.bonusPercentage', urgent.bonusPercentage, 0, true)
+
+	local warnings = {}
+	if type(urgent.warnings) == 'table' then
+		for _, seconds in ipairs(urgent.warnings) do
+			if type(seconds) == 'number' and seconds > 0 then
+				warnings[#warnings + 1] = seconds
+			else
+				serverWarningOnly('Config.UrgentContract.warnings contains "%s", but every value should be a number higher than 0, so it is skipped', tostring(seconds))
+			end
+		end
+	elseif urgent.warnings ~= nil then
+		serverWarningOnly('Config.UrgentContract.warnings should be a list like { 300, 60 }, so players get no warnings')
+	end
+	urgent.warnings = warnings
+end
 
 -- The highest tier a player of this level has unlocked, or nil when there is none.
 Utils.getHighestTier = function(level)

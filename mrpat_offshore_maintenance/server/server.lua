@@ -7,7 +7,7 @@ local allowedPayments = { 'cash', 'bank' }
 
 
 local function log(src, citizenid, event, message, tag)
-	if not Config.Logging then
+	if not Config.Logging or type(Config.LogCommand) ~= 'function' then
 		return
 	end
 	Config.LogCommand(src, event, ('%s (%s) %s'):format(GetPlayerName(src) or 'console', citizenid, message), tag)
@@ -88,41 +88,31 @@ local function giveMoney(src, citizenid, moneyType, amount, reason)
 	return true
 end
 
--- Checks to find possible issues at startup
-local function configCheckValue(name, value, zeroAllowed, maxValue)
-	local maxValueError = ''
-	if maxValue then
-		maxValueError = (' and at most %s'):format(maxValue)
-	end
-
-	local tooLow
-	if zeroAllowed then
-		tooLow = type(value) ~= 'number' or value < 0
-	else
-		tooLow = type(value) ~= 'number' or value <= 0
-	end
-
-	local tooHigh = not tooLow and maxValue and value > maxValue
-
-	if tooLow or tooHigh then
-		local minText = zeroAllowed and '0 or higher' or 'higher than 0'
-		lib.print.error(('Config.%s is "%s", but should be %s%s'):format(name, tostring(value), minText, maxValueError))
-	end
-end
-
+-- Checks to find possible issues at startup.
+-- The general number settings (distances, durations, deposit, urgent contracts) are checked in shared/utils.lua,
+-- so the client gets the same fallbacks. These are the server-only hooks.
 local function configCheckGeneralSettings()
-	configCheckValue('InteractionDistance', Config.InteractionDistance, false)
-	configCheckValue('RepairDuration', Config.RepairDuration, false)
-	configCheckValue('Deposit', Config.Deposit, true)
-	configCheckValue('UrgentContract.chance', Config.UrgentContract.chance, true, 100)
-	configCheckValue('UrgentContract.bonusPercentage', Config.UrgentContract.bonusPercentage, true)
+	if Config.Logging and type(Config.LogCommand) ~= 'function' then
+		lib.print.warn('Config.Logging is on, but Config.LogCommand is missing, so nothing will be logged')
+	end
 
-	if Config.UrgentContract and type(Config.UrgentContract.warnings) == 'table' then
-		for _, value in ipairs(Config.UrgentContract.warnings) do
-			if type(value) ~= 'number' or value <= 0 then
-				lib.print.error(('Config.UrgentContract.warnings is "%s", but should be number higher than 0. This warning will be skipped'):format(value))
-			end
-		end
+	local experience = Config.Experience
+	if type(experience) ~= 'table' or type(experience.get) ~= 'function' or type(experience.set) ~= 'function' then
+		lib.print.error('Config.Experience needs a get and a set function, so XP will be stored in qbx_core metadata (mrpat_offshore_xp) instead')
+		Config.Experience = {
+			get = function(src)
+				return exports.qbx_core:GetMetadata(src, 'mrpat_offshore_xp') or 0
+			end,
+			set = function(src, xp)
+				exports.qbx_core:SetMetadata(src, 'mrpat_offshore_xp', xp)
+			end,
+		}
+	end
+
+	local stats = Config.Stats
+	if stats and (type(stats) ~= 'table' or type(stats.get) ~= 'function' or type(stats.set) ~= 'function') then
+		lib.print.error('Config.Stats needs a get and a set function (or false to turn statistics off), so statistics are turned off')
+		Config.Stats = false
 	end
 end
 
@@ -184,9 +174,9 @@ local function configCheckTiers()
 			end
 
 			if tier.deposit ~= nil and type(tier.deposit) ~= 'number' then
-				lib.print.error(('tier "%s" has a deposit that is not a number'):format(tier.id))
+				lib.print.error(('tier "%s" has a deposit that is not a number, so it will use Config.Deposit (%s) instead'):format(tier.id, Config.Deposit))
 			elseif tier.deposit ~= nil and tier.deposit < 0 then
-				lib.print.error(('tier "%s" has a deposit of "%s", but it should be 0 or higher'):format(tier.id, tier.deposit))
+				lib.print.error(('tier "%s" has a deposit of "%s", but it should be 0 or higher, so it will use Config.Deposit (%s) instead'):format(tier.id, tier.deposit, Config.Deposit))
 			end
 
 			if tier.blip and not Utils.contains({'area','exact'}, tier.blip) then
@@ -245,7 +235,7 @@ local requiredLocationFields = {
 	type = 'string',
 }
 
-local allowedPlacements = { 'ground', 'water', 'seabed' }
+local allowedPlacements = { 'ground', 'surface', 'seabed' }
 
 local function configCheckLocations()
 	for index, location in ipairs(Config.Locations) do
@@ -508,6 +498,8 @@ local function endJob(src, notifyClient, outcome)
 		return
 	end
 
+	activeContracts[src] = nil
+
 	if DoesEntityExist(contract.vessel) then
 		exports.qbx_core:DeleteVehicle(contract.vessel)
 	end
@@ -527,8 +519,6 @@ local function endJob(src, notifyClient, outcome)
 		inTime = contract.inTime,
 		urgentBonusPaid = contract.urgentBonusPaid,
 	})
-
-	activeContracts[src] = nil
 
 	if notifyClient then
 		TriggerClientEvent('mrpat_om:cleanup', src)
@@ -567,7 +557,11 @@ local function finishJob(src, contract, refundDeposit, outcome)
 	payment = payment + contract.urgentBonusPaid
 	contract.paidOut = contract.pay + contract.urgentBonusPaid
 
-	giveMoney(src, contract.citizenid, 'bank', payment, locale('offshore_maintenance_pay'))
+	if not giveMoney(src, contract.citizenid, 'bank', payment, locale('offshore_maintenance_pay')) then
+		contract.paidOut = 0
+		contract.urgentBonusPaid = 0
+		contract.depositRefunded = false
+	end
 
 	local newLevel = Utils.getLevel(totalXp)
 	if newLevel > level then
@@ -610,10 +604,6 @@ local function handleLostVessel(src, contract)
 end
 
 local function validateContract(src, citizenid, tierId, moneyType)
-	if activeContracts[src] or pendingContracts[src] then
-		return nil, 'contract_already_active'
-	end
-
 	if not playerIsNear(src, Config.NPC.coords.xyz, Config.NPC.serverDistance) then
 		return nil, 'too_far_from_foreman'
 	end
@@ -722,7 +712,7 @@ lib.callback.register('mrpat_om:getProfile', function(src)
 	return playerXp, level, nextLevel and nextLevel.xp, jobStats
 end)
 
-lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
+local function startContract(src, tierId, moneyType)
 	local player = exports.qbx_core:GetPlayer(src)
 	if not player then
 		return false, 'no_character_loaded'
@@ -752,8 +742,6 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		return false, modelErr
 	end
 
-	pendingContracts[src] = true
-
 	local deposit = Utils.getDeposit(tier)
 
 	if deposit > 0 then
@@ -762,14 +750,12 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		end)
 
 		if not ok then
-			pendingContracts[src] = nil
 			log(src, citizenid, 'payment_failed', ('RemoveMoney crashed: %s'):format(paid))
 			print(('[mrpat_om] RemoveMoney failed: %s'):format(paid))
 			return false, 'contract_err'
 		end
 
 		if not paid then
-			pendingContracts[src] = nil
 			return false, 'not_enough_money'
 		end
 	end
@@ -786,7 +772,6 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 
 		log(src, citizenid, 'vessel_spawn_failed', ('wasn\'t able to get a vessel, reason: %s'):format(netId))
 		print(('[mrpat_om] vessel spawn failed: %s'):format(netId))
-		pendingContracts[src] = nil
 		return false, 'vessel_spawn_failed'
 	end
 
@@ -799,7 +784,6 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		end
 
 		log(src, citizenid, 'player_left_during_spawn', ('went offline while the vessel was spawning. Lost deposit: %s'):format(deposit))
-		pendingContracts[src] = nil
 		return false, 'no_character_loaded'
 	end
 
@@ -844,8 +828,6 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		urgentBonusPaid = 0,
 	}
 
-	pendingContracts[src] = nil
-
 	local contract = activeContracts[src]
 
 	TriggerEvent('mrpat_offshore_maintenance:jobStarted', {
@@ -862,6 +844,28 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 
 	log(src, citizenid, 'job_started', ('took a tier level %s job at %s, paid %s deposit by %s. Urgent = %s'):format(tier.level, location.label, deposit, moneyType, contract.urgent))
 	return true, location.coords, propModel, location.placement, netId, location.type, contract.urgent, secondsLeft
+end
+
+lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
+	if activeContracts[src] or pendingContracts[src] then
+		return false, 'contract_already_active'
+	end
+
+	pendingContracts[src] = true
+
+	local result = table.pack(pcall(startContract, src, tierId, moneyType))
+
+	pendingContracts[src] = nil
+
+	if not result[1] then
+		print(('[mrpat_om] getContract crashed: %s'):format(result[2]))
+		local player = exports.qbx_core:GetPlayer(src)
+		local citizenid = player and player.PlayerData.citizenid or 'unknown'
+		log(src, citizenid, 'contract_crashed', ('starting a contract crashed (deposit or vessel may already be taken or spawned): %s'):format(result[2]), 'suspicious')
+		return false, 'contract_err'
+	end
+
+	return table.unpack(result, 2, result.n)
 end)
 
 lib.callback.register('mrpat_om:inspect', function(src)
@@ -1016,7 +1020,7 @@ AddEventHandler('QBCore:Server:OnPlayerUnload', function(source)
 	end
 	pendingContracts[source] = nil
 	previousJobs[source] = nil
-	
+
 	endJob(source, true, 'logout')
 end)
 
@@ -1197,7 +1201,7 @@ lib.addCommand('offshore', {
 			help = 'XP amount, or 1/0 for endjob (refund deposit)', optional = true,
 		},
 	},
-	restricted = Config.AdminPermissions
+	restricted = Config.AdminPermissions or {}
 }, function(source, args)
 	local action = adminActions[args.action]
 	if not action then

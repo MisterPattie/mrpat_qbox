@@ -5,6 +5,7 @@ local foremanBlip
 
 local minigamePromise
 local jobVessel
+local jobVesselIsBoat
 local jobTier
 local siteType
 local siteProp
@@ -18,12 +19,15 @@ local depotBlip
 local sonarEnabled = true
 local sonarToken
 local urgentToken
+local anchorToken
 
 local inspectionSymptom
 local jobRepaired = false
 local promptInstruction
+local anchorInstruction
 local interactKey
 local sonarKey
+local anchorKey
 local completedReadings = {}
 local possibleRepairs = {}
 
@@ -150,6 +154,16 @@ local function hideInstruction()
 	promptInstruction = nil
 end
 
+-- Hides the anchor hint, but only if it is the text on screen.
+local function hideAnchorHint()
+	if not anchorInstruction then
+		return
+	end
+
+	lib.hideTextUI()
+	anchorInstruction = nil
+end
+
 local function cleanupJob()
 	removeSiteBlips()
 	depotBlip = removeBlip(depotBlip)
@@ -168,6 +182,7 @@ local function cleanupJob()
 	end
 
 	jobVessel = nil
+	jobVesselIsBoat = nil
 	siteType = nil
 	jobTier = nil
 	inspectionSymptom = nil
@@ -182,6 +197,8 @@ local function cleanupJob()
 		SendNUIMessage({ action = 'sonarOff' })
 	end
 	urgentToken = nil
+	anchorToken = nil
+	hideAnchorHint()
 end
 
 local function buildDiagnoseMenu()
@@ -332,7 +349,7 @@ local function spawnSiteProp(coords, model, placement, tier)
 	lib.requestModel(hash)
 
 	local spawnZ = coords.z
-	if placement == 'water' then
+	if placement == 'surface' then
 		local foundWater, height = GetWaterHeight(coords.x, coords.y, coords.z)
 		if foundWater then
 			spawnZ = height
@@ -391,18 +408,18 @@ local function toggleAnchor()
 		return
 	end
 
-	if IsVesselAnchored(jobVessel) then
-		SetVesselAnchor(jobVessel, false)
+	if IsBoatAnchored(jobVessel) then
+		SetBoatAnchor(jobVessel, false)
 		notify(locale('anchor_raised'))
 	else
-		SetVesselAnchor(jobVessel, true)
-		SetVesselFrozenWhenAnchored(jobVessel, true)
+		SetBoatAnchor(jobVessel, true)
+		SetBoatFrozenWhenAnchored(jobVessel, true)
 		notify(locale('anchor_dropped'))
 	end
 end
 
 -- keybind for anchor
-lib.addKeybind({
+anchorKey = lib.addKeybind({
 	name = 'mrpat_om_anchor',
 	description = locale('vessel_anchor'),
 	defaultKey = Config.Anchor.key,
@@ -454,7 +471,35 @@ local function startJob(tierId, moneyType)
 	local siteCoords = result
 	jobVessel = findVessel(netId)
 	if jobVessel then
+		jobVesselIsBoat = IsThisModelABoat(GetEntityModel(jobVessel)) == 1
 		if Config.ClientSetFuel then Config.ClientSetFuel(jobVessel) end
+	end
+
+	if jobVesselIsBoat then
+		local myToken = {}
+		anchorToken = myToken
+
+		CreateThread(function()
+			while anchorToken == myToken do
+				local inBoat = GetVehiclePedIsIn(PlayerPedId(), false) == jobVessel
+
+				if promptInstruction then
+					anchorInstruction = nil
+				elseif not inBoat then
+					hideAnchorHint()
+				else
+					local action = IsBoatAnchored(jobVessel) and locale('anchor_raise') or locale('anchor_drop')
+					local text = locale('interact'):format(anchorKey:getCurrentKey(), action)
+
+					if text ~= anchorInstruction then
+						lib.showTextUI(text)
+						anchorInstruction = text
+					end
+				end
+
+				Wait(250)
+			end
+		end)
 	end
 
 	notify(locale('contract_assigned'), 'success')
@@ -489,11 +534,14 @@ local function startJob(tierId, moneyType)
 						Wait(250)
 					else
 						local distance = #(playerCoords - siteCoords)
-						local interval
-						local bars
-						for index, range in ipairs(Config.Sonar.ranges) do
-							if distance >= range.distance then
-								interval = range.interval
+						-- no matching range (for example none for distance 0): beep every second, no bars
+						local interval = 1
+						local bars = 0
+						for index, range in ipairs(Config.Sonar.ranges or {}) do
+							if type(range.distance) == 'number' and distance >= range.distance then
+								if type(range.interval) == 'number' and range.interval > 0 then
+									interval = range.interval
+								end
 								bars = index
 								break
 							end
@@ -501,7 +549,7 @@ local function startJob(tierId, moneyType)
 
 						PlaySoundFrontend(-1, Config.Sonar.sound.soundName, Config.Sonar.sound.soundSetName, true)
 						if Config.Sonar.display then
-							SendNUIMessage({ action = 'sonarPing', bars = bars, total = #Config.Sonar.ranges })
+							SendNUIMessage({ action = 'sonarPing', bars = bars, total = #(Config.Sonar.ranges or {}) })
 							screenVisible = true
 						end
 						Wait(interval * 1000)
@@ -783,24 +831,24 @@ AddEventHandler('onResourceStop', function(resourceName)
 end)
 
 local minigameLabels = {
-	voltmeter = { 
+	voltmeter = {
 		title = 'voltmeter_title',
 		hint = 'voltmeter_hint',
 		retry = 'minigame_retry',
 	},
-	bolts = { 
+	bolts = {
 		title = 'bolts_title',
 		watch = 'bolts_watch',
 		go = 'bolts_go',
 		hint = 'bolts_hint',
 		retry = 'minigame_retry',
 	},
-	wires = { 
+	wires = {
 		title = 'wires_title',
 		hint = 'wires_hint',
 		retry = 'minigame_retry',
 	},
-	steady = { 
+	steady = {
 		title = 'steady_title',
 		hint = 'steady_hint',
 	},
@@ -820,6 +868,14 @@ local cursorGames = { bolts = true, wires = true }
 
 local function startMinigame(name, settings, title)
 	settings = settings or {}
+
+	-- a new minigame ends one that is still open, so its caller doesn't wait forever
+	if minigamePromise then
+		minigamePromise:resolve(false)
+		minigamePromise = nil
+		SendNUIMessage({ action = 'close' })
+	end
+
 	local myPromise = promise.new()
 	minigamePromise = myPromise
 	SetNuiFocus(true, cursorGames[name] == true)
@@ -832,7 +888,7 @@ local function startMinigame(name, settings, title)
 
 	SendNUIMessage({ action = 'open', game = name, settings = settings, labels = labels })
 	local timeout = (settings.timeout or 60) * 1000
-	SetTimeout(timeout, function() 
+	SetTimeout(timeout, function()
 		if minigamePromise == myPromise then
 			minigamePromise:resolve(false)
 			minigamePromise = nil

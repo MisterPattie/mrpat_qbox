@@ -13,7 +13,7 @@ dependencies {
 	'ox_lib',
 	'qbx_core',
 	'qbx_vehiclekeys',
-	'ox_target'
+	'ox_target',
 }
 
 shared_scripts {
