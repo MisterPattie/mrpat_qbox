@@ -1,4 +1,4 @@
-<!-- This README was written and updated with help from Claude (Anthropic). -->
+<!-- This README was written and updated with help from Claude (Anthropic), cause i'm to lazy to write it myself :P -->
 # mrpat_qbox
 
 Free FiveM resources for [Qbox](https://github.com/Qbox-project) servers, by MisterPattie.
